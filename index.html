@@ -1,0 +1,659 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Quiz Generator from PDF</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        .custom-loader {
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            background: 
+                radial-gradient(farthest-side,#4f46e5 94%,#0000) top/8px 8px no-repeat,
+                conic-gradient(#0000 30%,#4f46e5);
+            -webkit-mask: radial-gradient(farthest-side,#0000 calc(100% - 8px),#000 0);
+            mask: radial-gradient(farthest-side,#0000 calc(100% - 8px),#000 0);
+            animation: l13 1s infinite linear;
+        }
+        @keyframes l13{ 
+            100%{transform: rotate(1turn)}
+        }
+        /* Custom scrollbar for better aesthetics */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #f1f5f9;
+            border-radius: 10px;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 10px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
+        }
+    </style>
+</head>
+<body class="bg-slate-100 text-slate-800 flex items-center justify-center min-h-screen">
+
+    <main class="bg-white w-full max-w-4xl mx-auto my-8 p-6 sm:p-8 rounded-2xl shadow-lg transform transition-all duration-500">
+        
+        <!-- Header -->
+        <header class="text-center mb-8 border-b border-slate-200 pb-6">
+            <h1 class="text-3xl sm:text-4xl font-bold text-indigo-600">AI Quiz Generator</h1>
+            <p class="text-slate-500 mt-2">Upload a PDF, select topics, and instantly generate a quiz.</p>
+        </header>
+
+        <!-- Step 1: File Upload View -->
+        <div id="upload-view">
+            <div class="border-4 border-dashed border-slate-200 rounded-2xl p-8 sm:p-12 text-center cursor-pointer hover:border-indigo-400 hover:bg-indigo-50 transition-colors" id="drop-zone">
+                <svg class="mx-auto h-12 w-12 text-slate-400" stroke="currentColor" fill="none" viewBox="0 0 48 48" aria-hidden="true">
+                    <path d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+                </svg>
+                <p class="mt-4 text-lg text-slate-600">
+                    <span class="font-semibold text-indigo-600">Click to upload</span> or drag and drop a PDF
+                </p>
+                <p class="mt-1 text-sm text-slate-500">PDF files only, up to 50MB</p>
+                <input type="file" id="pdf-upload" class="hidden" accept=".pdf">
+            </div>
+            <div id="file-info" class="hidden mt-4 text-center">
+                <p class="text-slate-700 font-medium">
+                    <span id="file-name"></span>
+                    <button id="remove-file" class="ml-2 text-red-500 hover:text-red-700 font-bold">&times;</button>
+                </p>
+            </div>
+        </div>
+
+        <!-- Step 2: Topic Selection View -->
+        <div id="topic-selection-view" class="hidden">
+            <h2 class="text-2xl font-semibold mb-4 text-center">Select Topics for Your Quiz</h2>
+            <p class="text-center text-slate-500 mb-6">Choose the topics you want the questions to focus on.</p>
+            <div id="topic-list" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 max-h-60 overflow-y-auto p-2 bg-slate-50 rounded-lg">
+                <!-- Topics will be injected here -->
+            </div>
+            <p id="topic-error" class="text-red-500 text-sm text-center mt-2 hidden">Please select at least one topic.</p>
+            <button id="continue-to-config-btn" class="w-full mt-6 bg-indigo-600 text-white font-bold py-3 px-4 rounded-lg hover:bg-indigo-700 transition-colors flex items-center justify-center">Continue</button>
+        </div>
+
+        <!-- Step 3: Configuration View -->
+        <div id="config-view" class="hidden">
+            <h2 class="text-2xl font-semibold mb-4 text-center">Quiz Configuration</h2>
+            <div class="bg-slate-50 p-4 rounded-lg mb-6">
+                <h3 class="font-semibold text-slate-700">Extracted Text Preview:</h3>
+                <p id="text-preview" class="text-sm text-slate-600 h-24 overflow-y-auto border rounded-md p-2 mt-2 bg-white"></p>
+            </div>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                <div>
+                    <label for="num-questions" class="block text-sm font-medium text-slate-700">Number of Questions</label>
+                    <input type="number" id="num-questions" min="1" max="20" value="5" class="mt-1 block w-full rounded-md border-slate-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm p-2">
+                </div>
+                <div>
+                    <label for="marks-question" class="block text-sm font-medium text-slate-700">Marks per Question</label>
+                    <input type="number" id="marks-question" min="1" value="10" class="mt-1 block w-full rounded-md border-slate-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm p-2">
+                </div>
+            </div>
+            <button id="generate-quiz-btn" class="w-full mt-8 bg-indigo-600 text-white font-bold py-3 px-4 rounded-lg hover:bg-indigo-700 transition-colors flex items-center justify-center disabled:bg-indigo-300">
+                Generate Quiz
+            </button>
+        </div>
+        
+        <!-- Step 4: Quiz View -->
+        <div id="quiz-view" class="hidden">
+            <div class="flex justify-between items-center mb-4">
+                <h2 id="quiz-title" class="text-2xl font-bold">Your Quiz</h2>
+                <div class="text-lg font-semibold bg-indigo-100 text-indigo-800 px-3 py-1 rounded-full">
+                    <span id="timer">10:00</span>
+                </div>
+            </div>
+            <div id="quiz-container" class="space-y-6">
+                <!-- Quiz questions will be injected here -->
+            </div>
+            <button id="submit-quiz-btn" class="w-full mt-8 bg-green-600 text-white font-bold py-3 px-4 rounded-lg hover:bg-green-700 transition-colors">Submit Quiz</button>
+        </div>
+
+        <!-- Step 5: Results View -->
+        <div id="results-view" class="hidden text-center">
+            <h2 class="text-3xl font-bold mb-2">Quiz Completed!</h2>
+            <p class="text-slate-600 mb-6">Here's how you did.</p>
+            <div class="bg-indigo-50 p-6 rounded-2xl inline-block">
+                <p class="text-lg text-slate-700">Your Score:</p>
+                <p class="text-5xl font-extrabold text-indigo-600" id="score"></p>
+                <p class="text-lg text-slate-700 mt-1" id="score-details"></p>
+            </div>
+             <div id="review-container" class="mt-8 text-left space-y-4 max-h-96 overflow-y-auto p-4 bg-slate-50 rounded-lg">
+                <!-- Review of answers will be injected here -->
+            </div>
+            <button id="restart-btn" class="w-full sm:w-auto mt-8 bg-indigo-600 text-white font-bold py-3 px-6 rounded-lg hover:bg-indigo-700 transition-colors">Start New Quiz</button>
+        </div>
+
+        <!-- Loading/Processing Overlay -->
+        <div id="loader-overlay" class="hidden fixed inset-0 bg-white bg-opacity-80 backdrop-blur-sm flex flex-col items-center justify-center z-50">
+            <div class="custom-loader"></div>
+            <p id="loader-text" class="mt-4 text-lg font-semibold text-slate-700">Processing PDF...</p>
+        </div>
+        
+        <!-- Error Modal -->
+        <div id="error-modal" class="hidden fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50 flex items-center justify-center">
+            <div class="bg-white p-8 rounded-lg shadow-xl w-11/12 max-w-md mx-auto">
+                <div class="text-center">
+                    <h3 class="text-2xl font-bold text-red-600">An Error Occurred</h3>
+                    <p id="error-message" class="mt-2 text-slate-600">Something went wrong. Please try again.</p>
+                    <button id="close-error-modal" class="mt-6 bg-red-600 text-white font-bold py-2 px-6 rounded-lg hover:bg-red-700 transition-colors">Close</button>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Scripts are placed at the end of the body for faster page rendering -->
+    <!-- PDF.js library from Mozilla CDN -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.11.338/pdf.min.js"></script>
+    
+    <script>
+        // Set worker source for pdf.js right after the main library is declared
+        pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.11.338/pdf.worker.min.js`;
+
+        // DOM Elements
+        const uploadView = document.getElementById('upload-view');
+        const topicSelectionView = document.getElementById('topic-selection-view');
+        const configView = document.getElementById('config-view');
+        const quizView = document.getElementById('quiz-view');
+        const resultsView = document.getElementById('results-view');
+        const loaderOverlay = document.getElementById('loader-overlay');
+        const loaderText = document.getElementById('loader-text');
+
+        const dropZone = document.getElementById('drop-zone');
+        const pdfUpload = document.getElementById('pdf-upload');
+        const fileInfo = document.getElementById('file-info');
+        const fileNameEl = document.getElementById('file-name');
+        const removeFileBtn = document.getElementById('remove-file');
+        
+        const topicList = document.getElementById('topic-list');
+        const topicError = document.getElementById('topic-error');
+        const continueToConfigBtn = document.getElementById('continue-to-config-btn');
+        
+        const textPreview = document.getElementById('text-preview');
+        const numQuestionsInput = document.getElementById('num-questions');
+        const marksQuestionInput = document.getElementById('marks-question');
+        const generateQuizBtn = document.getElementById('generate-quiz-btn');
+        
+        const quizContainer = document.getElementById('quiz-container');
+        const quizTitle = document.getElementById('quiz-title');
+        const submitQuizBtn = document.getElementById('submit-quiz-btn');
+        const timerEl = document.getElementById('timer');
+        
+        const scoreEl = document.getElementById('score');
+        const scoreDetailsEl = document.getElementById('score-details');
+        const reviewContainer = document.getElementById('review-container');
+        const restartBtn = document.getElementById('restart-btn');
+
+        const errorModal = document.getElementById('error-modal');
+        const errorMessage = document.getElementById('error-message');
+        const closeErrorModalBtn = document.getElementById('close-error-modal');
+
+        // --- IMPORTANT SECURITY NOTICE ---
+        // Storing API keys in client-side code is EXTREMELY DANGEROUS.
+        // Anyone can view your website's source code and steal your key.
+        // This can lead to unauthorized use and potentially large bills.
+        // The BEST practice is to have a backend server that makes API calls.
+        // The key below is a placeholder. If you must use this for local testing,
+        // replace the empty string, but DO NOT deploy this file to a public server or GitHub.
+        const API_KEY = "AIzaSyAQPq_jGaVg3Kzyy7mETszNA3jdA79yphs";
+
+        // App State
+        let pdfFile = null;
+        let pdfTextContent = '';
+        let quizData = [];
+        let timerInterval = null;
+
+        // --- Event Listeners ---
+
+        // File Upload Handling
+        dropZone.addEventListener('click', () => pdfUpload.click());
+        dropZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropZone.classList.add('border-indigo-400', 'bg-indigo-50');
+        });
+        dropZone.addEventListener('dragleave', () => {
+            dropZone.classList.remove('border-indigo-400', 'bg-indigo-50');
+        });
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('border-indigo-400', 'bg-indigo-50');
+            const files = e.dataTransfer.files;
+            if (files.length > 0) {
+                handleFile(files[0]);
+            }
+        });
+        pdfUpload.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) {
+                handleFile(e.target.files[0]);
+            }
+        });
+        removeFileBtn.addEventListener('click', resetToUploadView);
+
+        // Topic Selection
+        continueToConfigBtn.addEventListener('click', () => {
+            const selectedTopics = document.querySelectorAll('input[name="topic"]:checked');
+            if (selectedTopics.length === 0) {
+                topicError.classList.remove('hidden');
+            } else {
+                topicError.classList.add('hidden');
+                switchToView('config');
+            }
+        });
+        
+        // Quiz Generation
+        generateQuizBtn.addEventListener('click', handleQuizGeneration);
+
+        // Quiz Submission & Restart
+        submitQuizBtn.addEventListener('click', () => handleSubmitQuiz(false));
+        restartBtn.addEventListener('click', resetToUploadView);
+        
+        // Error Modal
+        closeErrorModalBtn.addEventListener('click', () => errorModal.classList.add('hidden'));
+
+
+        // --- Core Functions ---
+        
+        /**
+         * A wrapper for the fetch API that includes a retry mechanism with exponential backoff.
+         * This makes API calls more resilient to temporary network or server errors (like 503).
+         * @param {string} url - The URL to fetch.
+         * @param {object} options - The options for the fetch request.
+         * @param {number} retries - The maximum number of retries.
+         * @param {number} delay - The initial delay in milliseconds.
+         * @returns {Promise<Response>} - A promise that resolves with the fetch response.
+         */
+        async function fetchWithRetry(url, options, retries = 3, delay = 1000) {
+            for (let i = 0; i < retries; i++) {
+                try {
+                    const response = await fetch(url, options);
+                    // Only retry on specific server errors that might be temporary.
+                    if ([500, 502, 503, 504].includes(response.status)) {
+                        // This creates an error to be caught by the catch block below
+                        throw new Error(`API error: ${response.status}`);
+                    }
+                    // If the response is OK (2xx) or a client error (4xx), return it immediately.
+                    return response;
+                } catch (error) {
+                    if (i < retries - 1) {
+                        console.warn(`Attempt ${i + 1} failed for ${url}. Retrying in ${delay / 1000}s...`);
+                        await new Promise(resolve => setTimeout(resolve, delay));
+                        delay *= 2;
+                    } else {
+                        // If this was the last attempt, re-throw the error to be handled by the calling function.
+                        throw error;
+                    }
+                }
+            }
+        }
+        
+        function handleFile(file) {
+            if (file.type !== 'application/pdf') {
+                showError('Invalid file type. Please upload a PDF.');
+                return;
+            }
+            if (file.size > 50 * 1024 * 1024) { // 50MB limit
+                showError('File size exceeds 50MB. Please upload a smaller PDF.');
+                return;
+            }
+
+            pdfFile = file;
+            fileNameEl.textContent = pdfFile.name;
+            fileInfo.classList.remove('hidden');
+            dropZone.classList.add('hidden');
+            
+            extractTextFromPdf(pdfFile);
+        }
+
+        async function extractTextFromPdf(file) {
+            showLoader('Processing PDF...');
+            const reader = new FileReader();
+            reader.readAsArrayBuffer(file);
+            reader.onload = async (e) => {
+                try {
+                    const pdf = await pdfjsLib.getDocument(e.target.result).promise;
+                    let text = '';
+                    for (let i = 1; i <= pdf.numPages; i++) {
+                        const page = await pdf.getPage(i);
+                        const textContent = await page.getTextContent();
+                        text += textContent.items.map(item => item.str).join(' ');
+                    }
+                    pdfTextContent = text.replace(/\s+/g, ' ').trim();
+                    textPreview.textContent = pdfTextContent.substring(0, 500) + '...';
+                    await generateAndDisplayTopics();
+                } catch (error) {
+                    console.error('Error parsing PDF:', error);
+                    showError('Could not read the PDF content. The file might be corrupted or protected.');
+                    resetToUploadView();
+                    hideLoader();
+                }
+            };
+            reader.onerror = () => {
+                showError('Failed to read the file.');
+                hideLoader();
+            };
+        }
+
+        async function generateAndDisplayTopics() {
+            showLoader('Identifying topics...');
+            try {
+                if (!API_KEY) {
+                    showError("API Key is missing. Please add your key to the script file.");
+                    hideLoader();
+                    resetToUploadView();
+                    return;
+                }
+                const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${API_KEY}`;
+
+                const systemPrompt = "You are an expert at analyzing text and identifying key topics. Extract the main topics from the following text.";
+                const userQuery = `Based on the following text, identify and list the main topics. Provide between 5 and 15 topics. Text: "${pdfTextContent.substring(0, 8000)}"`;
+                
+                const payload = {
+                    systemInstruction: { parts: [{ text: systemPrompt }] },
+                    contents: [{ parts: [{ text: userQuery }] }],
+                    generationConfig: {
+                        responseMimeType: "application/json",
+                        responseSchema: {
+                            type: "OBJECT",
+                            properties: {
+                                "topics": {
+                                    type: "ARRAY",
+                                    items: { "type": "STRING" }
+                                }
+                            },
+                            required: ["topics"]
+                        }
+                    }
+                };
+                
+                const fetchOptions = {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                };
+
+                const response = await fetchWithRetry(apiUrl, fetchOptions);
+
+                if (!response.ok) throw new Error(`API error: ${response.status}`);
+
+                const result = await response.json();
+                const generatedJson = JSON.parse(result.candidates[0].content.parts[0].text);
+                
+                if (generatedJson.topics && generatedJson.topics.length > 0) {
+                    topicList.innerHTML = ''; // Clear previous topics
+                    generatedJson.topics.forEach((topic, index) => {
+                        const topicEl = document.createElement('div');
+                        topicEl.className = 'flex items-center p-3 bg-white rounded-lg hover:bg-indigo-50 transition-colors border border-slate-200 cursor-pointer';
+                        topicEl.innerHTML = `
+                            <input id="topic-${index}" type="checkbox" value="${topic}" name="topic" class="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500">
+                            <label for="topic-${index}" class="ml-3 block text-sm font-medium text-slate-700 cursor-pointer">${topic}</label>
+                        `;
+                        topicList.appendChild(topicEl);
+                    });
+                    switchToView('topic-selection');
+                } else {
+                    // If no topics, skip to config
+                    switchToView('config');
+                }
+
+            } catch (error) {
+                console.error('Error generating topics:', error);
+                showError('Could not identify topics from the document. Proceeding without topic selection.');
+                switchToView('config'); // Fallback to config view
+            } finally {
+                hideLoader();
+            }
+        }
+
+        async function handleQuizGeneration() {
+            const numQuestions = parseInt(numQuestionsInput.value);
+            const selectedCheckboxes = document.querySelectorAll('input[name="topic"]:checked');
+            const selectedTopics = Array.from(selectedCheckboxes).map(cb => cb.value);
+
+            if (!pdfTextContent) {
+                showError('No text extracted from PDF. Please re-upload.');
+                return;
+            }
+            if (numQuestions < 1 || numQuestions > 20) {
+                showError('Please enter a number of questions between 1 and 20.');
+                return;
+            }
+
+            showLoader('Generating your quiz with AI...');
+            
+            try {
+                if (!API_KEY) {
+                    showError("API Key is missing. Please add your key to the script file.");
+                    hideLoader();
+                    switchToView('config');
+                    return;
+                }
+                const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${API_KEY}`;
+
+                const systemPrompt = "You are an expert quiz creator. Based on the provided text, generate a set of multiple-choice questions. Ensure questions are relevant to the text, options are plausible, and there is only one correct answer per question.";
+                
+                let userQuery = `Text: "${pdfTextContent.substring(0, 8000)}" \n\n Generate exactly ${numQuestions} multiple-choice questions from this text.`;
+                if(selectedTopics.length > 0) {
+                    userQuery += `\n\n Focus specifically on these topics: ${selectedTopics.join(', ')}.`;
+                }
+
+                const payload = {
+                    systemInstruction: { parts: [{ text: systemPrompt }] },
+                    contents: [{ parts: [{ text: userQuery }] }],
+                    generationConfig: {
+                        responseMimeType: "application/json",
+                        responseSchema: {
+                            type: "OBJECT",
+                            properties: {
+                                "questions": {
+                                    type: "ARRAY",
+                                    items: {
+                                        type: "OBJECT",
+                                        properties: {
+                                            "question": { "type": "STRING" },
+                                            "options": {
+                                                type: "ARRAY",
+                                                items: { "type": "STRING" },
+                                                minItems: 4,
+                                                maxItems: 4
+                                            },
+                                            "correctAnswer": { "type": "STRING" }
+                                        },
+                                        required: ["question", "options", "correctAnswer"]
+                                    }
+                                }
+                            },
+                            required: ["questions"]
+                        }
+                    }
+                };
+                
+                const fetchOptions = {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                };
+
+                const response = await fetchWithRetry(apiUrl, fetchOptions);
+                
+                if (!response.ok) {
+                    throw new Error(`API request failed with status ${response.status}`);
+                }
+                
+                const result = await response.json();
+                
+                if (result.candidates && result.candidates[0].content && result.candidates[0].content.parts[0].text) {
+                    const generatedJson = JSON.parse(result.candidates[0].content.parts[0].text);
+                    if (generatedJson.questions && generatedJson.questions.length > 0) {
+                        quizData = generatedJson.questions;
+                        displayQuiz();
+                        switchToView('quiz');
+                    } else {
+                        throw new Error("AI did not return any questions. The text might be too short or unclear.");
+                    }
+                } else {
+                    throw new Error("Invalid response structure from AI. Please try again.");
+                }
+
+            } catch (error) {
+                console.error('Error generating quiz:', error);
+                showError(`Quiz generation failed: ${error.message}`);
+                switchToView('config');
+            } finally {
+                hideLoader();
+            }
+        }
+        
+        function displayQuiz() {
+            quizContainer.innerHTML = '';
+            const marks = parseInt(marksQuestionInput.value);
+            quizTitle.textContent = `${pdfFile.name} Quiz (${marks} Marks each)`;
+
+            quizData.forEach((item, index) => {
+                const questionEl = document.createElement('div');
+                questionEl.className = 'bg-slate-50 p-6 rounded-lg border border-slate-200';
+                questionEl.innerHTML = `
+                    <p class="font-semibold text-lg mb-4">${index + 1}. ${item.question}</p>
+                    <div class="space-y-3">
+                        ${item.options.map((option, optionIndex) => `
+                            <div class="flex items-center">
+                                <input type="radio" id="q${index}_o${optionIndex}" name="q${index}" value="${option}" class="h-4 w-4 accent-indigo-600">
+                                <label for="q${index}_o${optionIndex}" class="ml-3 text-slate-700">${option}</label>
+                            </div>
+                        `).join('')}
+                    </div>
+                `;
+                quizContainer.appendChild(questionEl);
+            });
+            startTimer(quizData.length * 60); // 1 minute per question
+        }
+        
+        function startTimer(duration) {
+            let timer = duration, minutes, seconds;
+            clearInterval(timerInterval); // Clear any existing timer
+            timerInterval = setInterval(() => {
+                minutes = parseInt(timer / 60, 10);
+                seconds = parseInt(timer % 60, 10);
+
+                minutes = minutes < 10 ? "0" + minutes : minutes;
+                seconds = seconds < 10 ? "0" + seconds : seconds;
+
+                timerEl.textContent = minutes + ":" + seconds;
+
+                if (--timer < 0) {
+                    clearInterval(timerInterval);
+                    handleSubmitQuiz(true); // Auto-submit when time runs out
+                }
+            }, 1000);
+        }
+
+        function handleSubmitQuiz(timeUp = false) {
+            clearInterval(timerInterval);
+            let score = 0;
+            let correctAnswers = 0;
+            const marksPerQuestion = parseInt(marksQuestionInput.value);
+
+            // Build review content while calculating score
+            reviewContainer.innerHTML = '';
+            quizData.forEach((item, index) => {
+                const selectedOption = document.querySelector(`input[name="q${index}"]:checked`);
+                const userAnswer = selectedOption ? selectedOption.value : "Not Answered";
+                const isCorrect = userAnswer === item.correctAnswer;
+                
+                if (isCorrect) {
+                    correctAnswers++;
+                }
+
+                const reviewBlock = document.createElement('div');
+                reviewBlock.className = 'p-4 rounded-md';
+                reviewBlock.classList.add(isCorrect ? 'bg-green-100' : 'bg-red-100');
+                
+                reviewBlock.innerHTML = `
+                    <p class="font-semibold">${index + 1}. ${item.question}</p>
+                    <p class="mt-2 text-sm">Your answer: <span class="font-medium ${isCorrect ? 'text-green-800' : 'text-red-800'}">${userAnswer}</span></p>
+                    ${!isCorrect ? `<p class="text-sm">Correct answer: <span class="font-medium text-green-800">${item.correctAnswer}</span></p>` : ''}
+                `;
+                reviewContainer.appendChild(reviewBlock);
+            });
+
+            score = correctAnswers * marksPerQuestion;
+            const totalMarks = quizData.length * marksPerQuestion;
+            
+            scoreEl.textContent = `${score} / ${totalMarks}`;
+            scoreDetailsEl.textContent = `You answered ${correctAnswers} out of ${quizData.length} questions correctly.`;
+
+            if (timeUp) {
+                // You can add a specific message if the time ran out
+                const timeUpMessage = document.createElement('p');
+                timeUpMessage.textContent = "Time's up!";
+                timeUpMessage.className = "text-center font-bold text-red-600 mb-4";
+                resultsView.insertBefore(timeUpMessage, resultsView.firstChild);
+            }
+            
+            switchToView('results');
+        }
+
+        // --- UI Helper Functions ---
+
+        function switchToView(view) {
+            uploadView.classList.add('hidden');
+            topicSelectionView.classList.add('hidden');
+            configView.classList.add('hidden');
+            quizView.classList.add('hidden');
+            resultsView.classList.add('hidden');
+
+            switch(view) {
+                case 'upload': uploadView.classList.remove('hidden'); break;
+                case 'topic-selection': topicSelectionView.classList.remove('hidden'); break;
+                case 'config': configView.classList.remove('hidden'); break;
+                case 'quiz': quizView.classList.remove('hidden'); break;
+                case 'results': resultsView.classList.remove('hidden'); break;
+            }
+        }
+
+        function resetToUploadView() {
+            pdfFile = null;
+            pdfTextContent = '';
+            quizData = [];
+            clearInterval(timerInterval);
+            
+            pdfUpload.value = ''; // Reset file input
+            fileInfo.classList.add('hidden');
+            dropZone.classList.remove('hidden');
+            topicList.innerHTML = '';
+            
+            // Clear any lingering time's up messages
+            const timeUpMsg = resultsView.querySelector('.font-bold.text-red-600');
+            if (timeUpMsg) timeUpMsg.remove();
+            
+            switchToView('upload');
+        }
+
+        function showLoader(text) {
+            loaderText.textContent = text;
+            loaderOverlay.classList.remove('hidden');
+        }
+
+        function hideLoader() {
+            loaderOverlay.classList.add('hidden');
+        }
+
+        function showError(message) {
+            errorMessage.textContent = message;
+            errorModal.classList.remove('hidden');
+        }
+
+    </script>
+</body>
+</html>
+
